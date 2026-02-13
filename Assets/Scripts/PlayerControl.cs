@@ -1,7 +1,8 @@
 using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
-using DG.Tweening; // [핵심] DOTween 네임스페이스 추가
+using DG.Tweening;
+using Cinemachine;
 
 public class PlayerControl : MonoBehaviour
 {
@@ -16,25 +17,41 @@ public class PlayerControl : MonoBehaviour
 
     private Rigidbody2D rb;
     private SpriteRenderer spriteRenderer;
+    private bool hasDiedFromFall = false;
+    private bool isDead = false;
 
+    public GameObject GameOverUI;
+    private CinemachineImpulseSource impulseSource;
+    
     void Awake()
     {
         rb = GetComponent<Rigidbody2D>();
         spriteRenderer = GetComponent<SpriteRenderer>();
+        impulseSource = GetComponent<CinemachineImpulseSource>();
     }
 
     void FixedUpdate()
     {
+        if (isDead) return;
+        
         rb.velocity = new Vector2(moveSpeed, rb.velocity.y);
+        
+        if (transform.position.y < -20f && !hasDiedFromFall)
+        {
+            hasDiedFromFall = true;
+            Die();
+        }
     }
 
     public void Jump()
     {
+        if (isDead) return;
         rb.velocity = new Vector2(rb.velocity.x, jumpForce);
     }
 
     public void Attack()
     {
+        if (isDead) return;
         Debug.Log("공격!");
     }
 
@@ -45,14 +62,24 @@ public class PlayerControl : MonoBehaviour
             Debug.Log("장애물과 충돌!");
             TakeDamage();
         }
+        if (collision.CompareTag("FinalLine"))
+        {
+            Debug.Log("최종라인과 충돌!");
+            Clear();
+        }
     }
 
     private void TakeDamage()
     {
         if (isHurt) return;
 
-        currentHealth -= 50f;
+        currentHealth -= 40f;
         Debug.Log("현재 체력: " + currentHealth);
+        if (impulseSource != null)
+        {
+            // 괄호 안에 숫자를 넣으면 강도를 곱해서 조절할 수 있습니다. 예: GenerateImpulse(0.5f);
+            impulseSource.GenerateImpulse();
+        }
 
         if (currentHealth <= 0)
         {
@@ -68,13 +95,11 @@ public class PlayerControl : MonoBehaviour
     {
         isHurt = true;
 
-        // 기존 색상에서 투명도(Alpha)만 0.4로 변경하는 애니메이션
         // 0.2초 동안 변했다가(Duration), 20번 반복(Loops)하며, 다시 원래대로 돌아오는 방식(Yoyo)
-        // 총 지속 시간: 0.2초 * 15회 = 3초
+        // 총 지속 시간: 0.2초 * 10회 = 2초
         spriteRenderer.DOFade(0.4f, 0.2f)
-            .SetLoops(15, LoopType.Yoyo)
+            .SetLoops(10, LoopType.Yoyo)
             .OnComplete(() => {
-                // 애니메이션이 다 끝나면 실행될 코드 (람다식)
                 isHurt = false;
                 spriteRenderer.color = Color.white;
             });
@@ -82,7 +107,15 @@ public class PlayerControl : MonoBehaviour
 
     private void Die()
     {
+        isDead = true;
         Debug.Log("죽음!");
+        GameOverUI.SetActive(true);
+        transform.DOKill(); 
+    }
+
+    private void Clear()
+    {
+        Debug.Log("승리!");
         transform.DOKill(); 
     }
     
